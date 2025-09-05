@@ -15,25 +15,40 @@ import AuctionDetail from './pages/AuctionDetail.jsx'
 import Wallet from './pages/Wallet.jsx'
 import Favorites from './pages/Favorites.jsx'
 import Admin from './pages/Admin.jsx'
-// import CommunityChat from './pages/communitychat.jsx'
+import ConfirmDelivery from './pages/ConfirmDelivery.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <Provider store={store}>
     <BrowserRouter>
-      <Navbar/>
+      <Navbar />
       <Routes>
-        <Route path="/" element={<App/>}/>
-        <Route path="/login" element={<Login/>}/>
-        <Route path="/register" element={<Register/>}/>
-        <Route path="/auctions" element={<AuctionList/>}/>
-        <Route path="/auction/:id" element={<AuctionDetail/>}/>
-        <Route path="/wallet" element={<ProtectedRoute><Wallet/></ProtectedRoute>}/>
-        <Route path="/favorites" element={<ProtectedRoute><Favorites/></ProtectedRoute>}/>
-        <Route path="/create" element={<ProtectedRoute roles={['farmer']}><AuctionCreate/></ProtectedRoute>}/>
-        <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin/></ProtectedRoute>}/>
-        {/* <Route path="/community-chat" element={<ProtectedRoute><CommunityChat/></ProtectedRoute>}/> */}
-        <Route path="*" element={<Dashboard/>}/>
+        <Route path="/" element={<App />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/auctions" element={<AuctionList />} />
+        <Route path="/auction/:id" element={<AuctionDetail />} />
+        <Route
+          path="/wallet"
+          element={<ProtectedRoute><Wallet /></ProtectedRoute>}
+        />
+        <Route
+          path="/favorites"
+          element={<ProtectedRoute><Favorites /></ProtectedRoute>}
+        />
+        <Route
+          path="/confirm-delivery"
+          element={<ProtectedRoute><ConfirmDelivery /></ProtectedRoute>}
+        />
+        <Route
+          path="/create"
+          element={<ProtectedRoute roles={['farmer']}><AuctionCreate /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin"
+          element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>}
+        />
+        <Route path="*" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   </Provider>

@@ -24,7 +24,17 @@ const AuctionSchema = new mongoose.Schema({
   currentWinner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   bids: [BidSchema],
   status: { type: String, enum: ['OPEN','CLOSED'], default: 'OPEN' },
-  endsAt: { type: Date, required: true }
+  endsAt: { type: Date, required: true },
+
+  // 🔹 New delivery tracking field
+  deliveryStatus: {
+    farmerConfirmed: { type: Boolean, default: false },
+    buyerConfirmed: { type: Boolean, default: false },
+    finalPaymentDone: { type: Boolean, default: false },
+    advanceAmount: { type: Number, default: 0 },
+    finalAmount: { type: Number, default: 0 }
+  }
+
 }, { timestamps: true });
 
 export default mongoose.model('Auction', AuctionSchema);

@@ -138,66 +138,79 @@ router.get('/', async (req, res) => {
 });
 
 // 4. Close expired auctions
-// Close a single auction by ID (can be called from frontend timer)
 router.post('/close/:id', async (req, res) => {
   try {
     const a = await Auction.findById(req.params.id);
     if (!a) return res.status(404).json({ message: 'Auction not found' });
     if (a.status !== 'OPEN') return res.status(400).json({ message: 'Auction already closed' });
 
-    // Mark auction as closed
     a.status = 'CLOSED';
-    await a.save();
-
     let winnerName = null;
     const amount = a.currentBid;
 
     if (a.currentWinner) {
       const winner = await User.findById(a.currentWinner);
       winnerName = winner.name;
-
       const farmer = await User.findById(a.farmer);
       const admin = await User.findOne({ role: 'admin' });
 
-      // Process payment if winner has enough balance
-      if (winner.wallet.balance >= amount) {
-        winner.wallet.balance -= amount;
+      const advance = amount * 0.5;
+      const finalAmount = amount * 0.5;
+
+      if (winner.wallet.balance >= advance) {
+        // Deduct 50% from winner
+        winner.wallet.balance -= advance;
         winner.wallet.history.push({
           type: 'WITHDRAW',
-          amount,
-          note: `Payment for auction ${a._id}`
+          amount: advance,
+          note: `50% advance for auction ${a._id}`
         });
 
-        const { fee, netToFarmer } = calcFee(amount, Number(process.env.PLATFORM_FEE_PERCENT || 1));
+        // Calculate platform fee
+        const { fee, netToFarmer } = calcFee(
+          advance,
+          Number(process.env.PLATFORM_FEE_PERCENT || 1)
+        );
 
+        // Add fee to admin
         if (admin) {
           admin.wallet.balance += fee;
           admin.wallet.history.push({
             type: 'FEE',
             amount: fee,
-            note: `Fee from auction ${a._id}`
+            note: `50% fee from auction ${a._id}`
           });
         }
 
+        // Add 50% to farmer
         farmer.wallet.balance += netToFarmer;
         farmer.wallet.history.push({
           type: 'EARN',
           amount: netToFarmer,
-          note: `Winning proceeds from auction ${a._id}`
+          note: `50% advance proceeds from auction ${a._id}`
         });
 
-        await Promise.all([winner.save(), farmer.save(), admin?.save()]);
+        // Store delivery status
+        a.deliveryStatus = {
+          farmerConfirmed: false,
+          buyerConfirmed: false,
+          finalPaymentDone: false,
+          advanceAmount: advance,
+          finalAmount: finalAmount
+        };
+
+        await Promise.all([winner.save(), farmer.save(), admin?.save(), a.save()]);
       } else {
-        // Notify user if insufficient balance
         await Notification.create({
           user: a.currentWinner,
           title: 'Payment Failed',
           body: `Insufficient balance to pay for auction ${a.title}`
         });
       }
+    } else {
+      await a.save();
     }
 
-    // Emit socket event with winner info
     getIO().emit('auction:settled', {
       auctionId: a._id.toString(),
       winner: winnerName,
@@ -210,6 +223,92 @@ router.post('/close/:id', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * Confirm Delivery → release final 50%
+ */
+// Confirm delivery route
+router.post('/:id/confirm-delivery',auth, async (req, res) => {
+  const userId = req.user._id; // from JWT auth middleware  
+  console.log('Confirm delivery by user:', req.user.role);
+  try {
+    const auction = await Auction.findById(req.params.id)
+      .populate('currentWinner')
+      .populate('farmer');
+    if (!auction) return res.status(404).json({ message: 'Auction not found' });
+
+    const userId = req.id; // from JWT auth middleware
+
+    // Farmer confirms
+    if (auction.farmer._id.equals(userId)) {
+      auction.deliveryStatus.farmerConfirmed = true;
+    }
+    // Buyer confirms
+    if (auction.currentWinner._id.equals(userId)) {
+      auction.deliveryStatus.buyerConfirmed = true;
+    }
+
+    // If both confirmed and final not yet paid
+    if (
+      auction.deliveryStatus.farmerConfirmed &&
+      auction.deliveryStatus.buyerConfirmed &&
+      !auction.deliveryStatus.finalPaymentDone
+    ) {
+      const winner = await User.findById(auction.currentWinner._id);
+      const farmer = await User.findById(auction.farmer._id);
+      const admin = await User.findOne({ role: 'admin' });
+
+      const finalAmount = auction.deliveryStatus.finalAmount;
+
+      console.log('Processing final payment of', finalAmount, 'from', winner.name);
+      if (winner.wallet.balance >= finalAmount) {
+        // Deduct final 50% from buyer
+        winner.wallet.balance -= finalAmount;
+        winner.wallet.history.push({
+          type: 'WITHDRAW',
+          amount: finalAmount,
+          note: `Final 50% payment for auction ${auction._id}`
+        });
+
+        // Calculate fee on final part
+        const { fee, netToFarmer } = calcFee(
+          finalAmount,
+          Number(process.env.PLATFORM_FEE_PERCENT || 1)
+        );
+       console.log('Platform fee:', fee, 'Net to farmer:', netToFarmer);
+        if (admin) {
+          admin.wallet.balance += fee;
+          admin.wallet.history.push({
+            type: 'FEE',
+            amount: fee,
+            note: `Final fee from auction ${auction._id}`
+          });
+        }
+
+        farmer.wallet.balance += netToFarmer;
+        farmer.wallet.history.push({
+          type: 'EARN',
+          amount: netToFarmer,
+          note: `Final proceeds from auction ${auction._id}`
+        });
+
+        auction.deliveryStatus.finalPaymentDone = true;
+
+        await Promise.all([winner.save(), farmer.save(), admin?.save()]);
+      }
+    }
+
+    await auction.save();
+    res.json({
+      message: 'Delivery confirmation updated',
+      deliveryStatus: auction.deliveryStatus
+    });
+  } catch (err) {
+    console.error('Error confirming delivery:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 export default router;

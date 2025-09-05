@@ -17,7 +17,8 @@ export default function Navbar(){
           {user?.role==='farmer' && <NavLink to="/create">Create</NavLink>}
           <NavLink to="/wallet">Wallet</NavLink>
           <NavLink to="/favorites">Favorites</NavLink>
-          <NavLink to="/community-chat">Community Chat</NavLink>
+          <NavLink to="/dashboard">Dashboard</NavLink>
+          <NavLink to="/confirm-delivery">Confirm Delivery</NavLink>
           {user?.role==='admin' && <NavLink to="/admin">Admin</NavLink>}
           {!user ? (
             <>
